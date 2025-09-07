@@ -752,7 +752,7 @@ show_services_info() {
             else
                 status="${COLOR_RED}disabled/not installed${RESET}"
             fi
-            printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "${service}:" "${status}"
+            printf "${COLOR_LABEL}%-22s${RESET}%s\n" "${service}:" "${status}"
         else
             printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "${service}:" "systemctl not available"
         fi
