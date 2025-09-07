@@ -744,15 +744,13 @@ show_services_info() {
     
     for service in "${services[@]}"; do
         if [[ -x "${SYSTEMCTL}" ]]; then
-            local status
             if "${SYSTEMCTL}" is-active "${service}" >/dev/null 2>&1; then
-                status="${COLOR_GREEN}active${RESET}"
+                printf "${COLOR_LABEL}%-22s${COLOR_GREEN}%s${RESET}\n" "${service}:" "active"
             elif "${SYSTEMCTL}" is-enabled "${service}" >/dev/null 2>&1; then
-                status="${COLOR_YELLOW}inactive${RESET}"
+                printf "${COLOR_LABEL}%-22s${COLOR_YELLOW}%s${RESET}\n" "${service}:" "inactive"
             else
-                status="${COLOR_RED}disabled/not installed${RESET}"
+                printf "${COLOR_LABEL}%-22s${COLOR_RED}%s${RESET}\n" "${service}:" "disabled/not installed"
             fi
-            printf "${COLOR_LABEL}%-22s${RESET}%s\n" "${service}:" "${status}"
         else
             printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "${service}:" "systemctl not available"
         fi
