@@ -380,6 +380,7 @@ readonly GREP="/bin/grep"
 readonly SED="/bin/sed"
 readonly DOCKER="/usr/bin/docker"
 readonly WC="/usr/bin/wc"
+readonly SYSTEMCTL="/bin/systemctl"
 
 bar() {
     local used=$1
@@ -736,6 +737,28 @@ show_updates_info() {
     fi
 }
 
+show_services_info() {
+    echo -e "\n${COLOR_TITLE}• Services Status${RESET}"
+    
+    local services=("crowdsec" "alloy" "docker")
+    
+    for service in "${services[@]}"; do
+        if [[ -x "${SYSTEMCTL}" ]]; then
+            local status
+            if "${SYSTEMCTL}" is-active "${service}" >/dev/null 2>&1; then
+                status="${COLOR_GREEN}active${RESET}"
+            elif "${SYSTEMCTL}" is-enabled "${service}" >/dev/null 2>&1; then
+                status="${COLOR_YELLOW}inactive${RESET}"
+            else
+                status="${COLOR_RED}disabled/not installed${RESET}"
+            fi
+            printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "${service}:" "${status}"
+        else
+            printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "${service}:" "systemctl not available"
+        fi
+    done
+}
+
 
 main() {
     show_logo
@@ -746,6 +769,7 @@ main() {
     show_network_info
     show_firewall_info
     show_docker_info
+    show_services_info
     show_updates_info 
     echo
 }
