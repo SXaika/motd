@@ -740,7 +740,7 @@ show_updates_info() {
 show_services_info() {
     echo -e "\n${COLOR_TITLE}• Services Status${RESET}"
     
-    local services=("crowdsec" "alloy" "docker")
+    local services=("crowdsec" "alloy" "docker" "netbird")
     
     for service in "${services[@]}"; do
         if [[ -x "${SYSTEMCTL}" ]]; then
