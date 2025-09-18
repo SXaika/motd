@@ -320,6 +320,14 @@ SHOW_DOCKER=true
 SHOW_FIREWALL=true
 SHOW_FIREWALL_RULES=false
 SHOW_UPDATES=false
+SERVICES_STATUS_ENABLED=false
+
+# Настройка списка для Services Status 
+SERVICES=()
+
+# Формат ввода:
+# ("crowdsec" "ufw" "cron" "postfix" "ssh" "alloy" "docker" "netbird")
+
 EOF
     
     "${CHMOD}" 644 "${CONFIG_FILE}"
@@ -433,18 +441,19 @@ show_session_info() {
     
     local real_user
     real_user=$(safe_cmd /usr/bin/logname)
-    if [[ "${real_user}" = "N/A" ]]; then
+    if [[ "${real_user}" = "N/A" || -z "${real_user}" ]]; then
         real_user=$(safe_cmd "${WHO}" | "${AWK}" 'NR==1{print $1}')
     fi
     printf "${COLOR_LABEL}%-22s${COLOR_YELLOW}%s${RESET}\n" "User:" "${real_user:-Unknown}"
     
-    if [[ -f "/var/log/lastlog" ]] && [[ -x "${LASTLOG}" ]]; then
-        local lastlog_raw lastlog_date lastlog_ip
-        lastlog_raw=$(safe_cmd "${LASTLOG}" -u "${real_user}" | "${TAIL}" -n 1)
-        if [[ "${lastlog_raw}" != "N/A" ]] && [[ "${lastlog_raw}" != *"Never logged in"* ]]; then
-            lastlog_date=$(echo "${lastlog_raw}" | "${AWK}" '{printf "%s %s %s %s %s", $4, $5, $6, $7, $9}')
-            lastlog_ip=$(echo "${lastlog_raw}" | "${AWK}" '{print $3}')
-            printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s ${COLOR_YELLOW}from %s${RESET}\n" "Last login:" "${lastlog_date}" "${lastlog_ip}"
+    if command -v last >/dev/null 2>&1; then
+        local lastlogin_line
+        lastlogin_line=$(last "$real_user" | grep -v "still logged in" | head -n 1)
+        if [[ -n "$lastlogin_line" ]]; then
+            local lastlogindate lastloginip
+            lastlogindate=$(echo "$lastlogin_line" | "${AWK}" '{printf "%s %s %s %s %s", $4, $5, $6, $7, $8}')
+            lastloginip=$(echo "$lastlogin_line" | "${AWK}" '{print $3}')
+            printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s ${COLOR_YELLOW}from %s${RESET}\n" "Last login:" "$lastlogindate" "$lastloginip"
         else
             echo -e "${COLOR_LABEL}Last login:${RESET} not available"
         fi
@@ -738,25 +747,37 @@ show_updates_info() {
 }
 
 show_services_info() {
-    echo -e "\n${COLOR_TITLE}• Services Status${RESET}"
-    
-    local services=("crowdsec" "alloy" "docker" "netbird")
-    
-    for service in "${services[@]}"; do
-        if [[ -x "${SYSTEMCTL}" ]]; then
-            if "${SYSTEMCTL}" is-active "${service}" >/dev/null 2>&1; then
-                printf "${COLOR_LABEL}%-22s${COLOR_GREEN}%s${RESET}\n" "${service}:" "active"
-            elif "${SYSTEMCTL}" is-enabled "${service}" >/dev/null 2>&1; then
-                printf "${COLOR_LABEL}%-22s${COLOR_YELLOW}%s${RESET}\n" "${service}:" "inactive"
-            else
-                printf "${COLOR_LABEL}%-22s${COLOR_RED}%s${RESET}\n" "${service}:" "disabled/not installed"
-            fi
-        else
-            printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "${service}:" "systemctl not available"
-        fi
-    done
-}
+  # Загружаем настройки из конфига, если он есть
+  source /etc/dist-motd.conf || true
 
+  # Проверяем, включено ли отображение статуса сервисов
+  if [[ "${SERVICES_STATUS_ENABLED,,}" != "true" ]]; then
+    return
+  fi
+
+  echo -e "\n${COLOR_TITLE}• Services Status${RESET}"
+
+  # Проверяем, есть ли список сервисов
+  if [[ ${#SERVICES[@]} -eq 0 ]]; then
+    printf "${COLOR_YELLOW}Настройте список сервисов через motd-set.${RESET}"
+    return
+  fi
+
+  # Основной цикл по сервисам
+  for service in "${SERVICES[@]}"; do
+    if command -v systemctl >/dev/null 2>&1; then
+      if systemctl is-active --quiet "$service"; then
+        printf "${COLOR_LABEL}%-22s${COLOR_GREEN}%s${RESET}\n" "$service:" "active"
+      elif systemctl is-enabled --quiet "$service"; then
+        printf "${COLOR_LABEL}%-22s${COLOR_YELLOW}%s${RESET}\n" "$service:" "inactive"
+      else
+        printf "${COLOR_LABEL}%-22s${COLOR_RED}%s${RESET}\n" "$service:" "disabled/not installed"
+      fi
+    else
+      printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "$service:" "systemctl not available"
+    fi
+  done
+}
 
 main() {
     show_logo
@@ -936,16 +957,18 @@ show_main_menu() {
         CHOICE=$("${WHIPTAIL}" --title "MOTD Management" --menu \
         "Выберите действие:" 15 60 4 \
         "1" "Настроить отображение MOTD" \
-        "2" "Удалить кастомный MOTD (с полным восстановлением)" \
-        "3" "Показать статус установки" \
-        "4" "Выход" \
+        "2" "Настроить Services Status" \
+        "3" "Удалить кастомный MOTD (с полным восстановлением)" \
+        "4" "Показать статус установки" \
+        "5" "Выход" \
         3>&1 1>&2 2>&3)
         
         case $CHOICE in
             1) configure_motd_display ;;
-            2) confirm_uninstall ;;
-            3) show_installation_status ;;
-            4) exit 0 ;;
+            2) manage_services_status_menu ;;
+            3) confirm_uninstall ;;
+            4) show_installation_status ;;
+            5) exit 0 ;;
             *) exit 0 ;;
         esac
     done
@@ -982,6 +1005,61 @@ configure_motd_display() {
         
         "${WHIPTAIL}" --title "Успех" --msgbox "Настройки обновлены!\n\nПроверьте результат командой: motd" 10 50
     fi
+}
+
+manage_services_status_menu() {
+  while true; do
+    CHOICE=$(whiptail --title "Настройка Services Status" --menu "Выберите действие:" 12 50 4 \
+      "1" "Включить/Отключить отображение" \
+      "2" "Настроить список сервисов" \
+      "0" "Назад" 3>&1 1>&2 2>&3)
+
+    exitstatus=$?
+    if [ $exitstatus != 0 ]; then
+      break
+    fi
+
+    case "$CHOICE" in
+      "1")
+        toggle_services_status
+        ;;
+      "2")
+        edit_services_list
+        ;;
+      "0")
+        break
+        ;;
+    esac
+  done
+}
+
+toggle_services_status() {
+  local config_file="/etc/dist-motd.conf"
+  source "$config_file" || true
+
+  if [[ "$SERVICES_STATUS_ENABLED" == "true" ]]; then
+    sed -i 's/^SERVICES_STATUS_ENABLED=true/SERVICES_STATUS_ENABLED=false/' "$config_file"
+  else
+    if ! grep -q '^SERVICES_STATUS_ENABLED=' "$config_file"; then
+      echo 'SERVICES_STATUS_ENABLED=true' >> "$config_file"
+    else
+      sed -i 's/^SERVICES_STATUS_ENABLED=.*/SERVICES_STATUS_ENABLED=true/' "$config_file"
+    fi
+  fi
+
+  whiptail --msgbox "Опция отображения статуса сервисов обновлена! Чтобы изменения вступили в силу, переподключитесь." 8 70
+}
+
+edit_services_list() {
+  local config_file="/etc/dist-motd.conf"
+
+  if [ ! -f "$config_file" ]; then
+    # Создаем файл с дефолтной пустой настройкой, если не существует
+    echo 'SERVICES=()' > "$config_file"
+  fi
+
+  # Открываем конфиг для редактирования через nano
+  nano "$config_file"
 }
 
 confirm_uninstall() {
