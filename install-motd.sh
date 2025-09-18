@@ -301,7 +301,7 @@ install_dependencies() {
         log_warn "Не удалось обновить список пакетов, продолжаем установку"
     fi
     
-    local packages=("toilet" "figlet" "procps" "lsb-release" "whiptail" "rsync")
+    local packages=("toilet" "figlet" "procps" "lsb-release" "whiptail" "rsync" "wtmpdb" "libpam-wtmpdb")
     if ! "${APT_GET}" install -y "${packages[@]}" > /dev/null; then
         log_error "Не удалось установить необходимые пакеты"
         exit 1
