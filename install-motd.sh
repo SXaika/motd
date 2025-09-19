@@ -301,12 +301,13 @@ install_dependencies() {
         log_warn "Не удалось обновить список пакетов, продолжаем установку"
     fi
 
-    # Базовые пакеты для всех систем
     local packages=("toilet" "figlet" "procps" "lsb-release" "whiptail" "rsync")
 
-    # Проверка: если это Debian — добавить специфичные пакеты
-    if grep -qi debian /etc/os-release; then
-        packages+=("wtmpdb" "libpam-wtmpdb")
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        if [[ "$ID" == "debian" && "$VERSION_ID" -ge 13 ]]; then
+            packages+=("wtmpdb" "libpam-wtmpdb")
+        fi
     fi
 
     if ! "${APT_GET}" install -y "${packages[@]}" > /dev/null; then
