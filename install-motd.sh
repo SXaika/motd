@@ -300,8 +300,16 @@ install_dependencies() {
     if ! "${APT_GET}" update -qq; then
         log_warn "Не удалось обновить список пакетов, продолжаем установку"
     fi
-    
-    local packages=("toilet" "figlet" "procps" "lsb-release" "whiptail" "rsync" "wtmpdb" "libpam-wtmpdb")
+
+    local packages=("toilet" "figlet" "procps" "lsb-release" "whiptail" "rsync")
+
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        if [[ "$ID" == "debian" && "$VERSION_ID" -ge 13 ]]; then
+            packages+=("wtmpdb" "libpam-wtmpdb")
+        fi
+    fi
+
     if ! "${APT_GET}" install -y "${packages[@]}" > /dev/null; then
         log_error "Не удалось установить необходимые пакеты"
         exit 1
