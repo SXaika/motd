@@ -680,8 +680,8 @@ show_firewall_info() {
 }
 
 show_docker_info() {
-    if [[ "${SHOWDOCKER}" == "true" ]] && [[ -x "${DOCKER}" ]]; then
-        echo -e "\n${COLORTITLE}• Docker${RESET}"
+    if [[ "${SHOW_DOCKER}" == "true" ]] && [[ -x "${DOCKER}" ]]; then
+        echo -e "\n${COLOR_TITLE}• Docker${RESET}"
         local runningnamesoutput totalnamesoutput
         runningnamesoutput=$(safe_cmd "${DOCKER}" ps --format '{{.Names}}' 2>/dev/null)
         totalnamesoutput=$(safe_cmd "${DOCKER}" ps -a --format '{{.Names}}' 2>/dev/null)
@@ -694,29 +694,27 @@ show_docker_info() {
             totalcount=$(echo "${totalnamesoutput}" | "${WC}" -l)
         fi
 
-        # Вывод количества контейнеров
         if [[ "${SHOW_DOCKER_STATUS}" == "true" ]]; then
-            printf "${COLORLABEL}%-22s${COLORVALUE}%s${RESET}\n" "Containers:" "${runningcount} / ${totalcount}"
+            printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "Containers:" "${runningcount} / ${totalcount}"
         fi
 
-        # Вывод списка имен контейнеров
         if [[ "${SHOW_DOCKER_RUNNING_LIST}" == "true" ]] && [[ "${runningcount}" -gt 0 ]] && [[ "${runningnamesoutput}" != "N/A" ]]; then
-            echo -e "${COLORLABEL}Running Containers:${RESET}"
+            echo -e "${COLOR_LABEL}Running Containers:${RESET}"
             local names_array=()
             while IFS= read -r line; do
                 [[ -n "$line" ]] && names_array+=("$line")
             done <<< "${runningnamesoutput}"
             for ((i = 0; i < ${#names_array[@]}; i+=2)); do
                 if [[ $((i + 1)) -lt ${#names_array[@]} ]]; then
-                    printf " ${COLORVALUE}%-30s%-30s${RESET}\n" "${names_array[$i]}" "${names_array[$((i + 1))]}"
+                    printf " ${COLOR_VALUE}%-30s%-30s${RESET}\n" "${names_array[$i]}" "${names_array[$((i + 1))]}"
                 else
-                    printf " ${COLORVALUE}%-30s${RESET}\n" "${names_array[$i]}"
+                    printf " ${COLOR_VALUE}%-30s${RESET}\n" "${names_array[$i]}"
                 fi
             done
         fi
-    elif [[ "${SHOWDOCKER}" == "true" ]]; then
-        echo -e "\n${COLORTITLE}• Docker${RESET}"
-        printf "${COLORLABEL}%-22s${COLORVALUE}%s${RESET}\n" "Docker:" "not installed"
+    elif [[ "${SHOW_DOCKER}" == "true" ]]; then
+        echo -e "\n${COLOR_TITLE}• Docker${RESET}"
+        printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "Docker:" "not installed"
     fi
 }
 
@@ -1259,6 +1257,7 @@ main() {
     create_motd_script
     create_settings_command
     create_motd_command
+    configure_pam_ssh
     configure_pam_configure_motd_display() {
     if [[ ! -f "${CONFIG}" ]]; then
         "${WHIPTAIL}" --title "Ошибка" --msgbox "Конфигурационный файл не найден: ${CONFIG}" 8 60
