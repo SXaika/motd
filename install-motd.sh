@@ -300,16 +300,8 @@ install_dependencies() {
     if ! "${APT_GET}" update -qq; then
         log_warn "Не удалось обновить список пакетов, продолжаем установку"
     fi
-
+    
     local packages=("toilet" "figlet" "procps" "lsb-release" "whiptail" "rsync")
-
-    if [[ -f /etc/os-release ]]; then
-        . /etc/os-release
-        if [[ "$ID" == "debian" && "$VERSION_ID" -ge 13 ]]; then
-            packages+=("wtmpdb" "libpam-wtmpdb")
-        fi
-    fi
-
     if ! "${APT_GET}" install -y "${packages[@]}" > /dev/null; then
         log_error "Не удалось установить необходимые пакеты"
         exit 1
@@ -454,17 +446,18 @@ show_session_info() {
     fi
     printf "${COLOR_LABEL}%-22s${COLOR_YELLOW}%s${RESET}\n" "User:" "${real_user:-Unknown}"
     
-    if command -v last >/dev/null 2>&1; then
-        local lastlogin_line
-        lastlogin_line=$(last "$real_user" | grep -v "still logged in" | head -n 1)
-        if [[ -n "$lastlogin_line" ]]; then
-            local lastlogindate lastloginip
-            lastlogindate=$(echo "$lastlogin_line" | "${AWK}" '{printf "%s %s %s %s %s", $4, $5, $6, $7, $8}')
-            lastloginip=$(echo "$lastlogin_line" | "${AWK}" '{print $3}')
-            printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s ${COLOR_YELLOW}from %s${RESET}\n" "Last login:" "$lastlogindate" "$lastloginip"
-        else
-            echo -e "${COLOR_LABEL}Last login:${RESET} not available"
-        fi
+    local last_login
+    last_login=$(journalctl -u ssh.service -u sshd.service -o short-iso -n 30 \
+        | grep -E "Accepted (password|publickey|keyboard-interactive)" \
+        | tail -n 2 | head -n 1 \
+        | sed -n 's/^\([0-9TZ:+-]*\).* from \([0-9.]*\) port.*/\1 \2/p' \
+        | while read dt ip; do
+            date_str=$(date -u -d "$dt" "+%d %b %H:%M")
+            echo "$date_str UTC from $ip"
+          done)
+
+    if [[ -n "$last_login" ]]; then
+        printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "Last login:" "$last_login"
     else
         echo -e "${COLOR_LABEL}Last login:${RESET} not available"
     fi
