@@ -315,11 +315,13 @@ create_config() {
 SHOW_LOGO=true
 SHOW_CPU=true
 SHOW_MEM=true
-SHOW_NET=true
+SHOW_NET=false
 SHOW_DOCKER=true
+SHOW_DOCKER_STATUS=true
+SHOW_DOCKER_RUNNING_LIST=false
 SHOW_FIREWALL=true
 SHOW_FIREWALL_RULES=false
-SHOW_UPDATES=false
+SHOW_UPDATES=true
 SERVICES_STATUS_ENABLED=false
 
 # Настройка списка для Services Status 
@@ -352,10 +354,14 @@ else
     SHOW_LOGO=true
     SHOW_CPU=true
     SHOW_MEM=true
-    SHOW_NET=true
+    SHOW_NET=false
     SHOW_DOCKER=true
+    SHOW_DOCKER_STATUS=true
+    SHOW_DOCKER_RUNNING_LIST=false
     SHOW_FIREWALL=true
     SHOW_FIREWALL_RULES=false
+    SHOW_UPDATES=true
+    SERVICES_STATUS_ENABLED=false
 fi
 
 readonly COLOR_TITLE="\e[1;37m"
@@ -674,44 +680,43 @@ show_firewall_info() {
 }
 
 show_docker_info() {
-    if [[ "${SHOW_DOCKER}" = "true" ]] && [[ -x "${DOCKER}" ]]; then
-        echo -e "\n${COLOR_TITLE}• Docker${RESET}"
-        
-        local running_names_output total_names_output
-        running_names_output=$(safe_cmd "${DOCKER}" ps --format '{{.Names}}' 2>/dev/null)
-        total_names_output=$(safe_cmd "${DOCKER}" ps -a --format '{{.Names}}' 2>/dev/null)
-        
-        local running_count=0 total_count=0
-        
-        if [[ "${running_names_output}" != "N/A" ]] && [[ -n "${running_names_output}" ]]; then
-            running_count=$(echo "${running_names_output}" | "${WC}" -l)
+    if [[ "${SHOWDOCKER}" == "true" ]] && [[ -x "${DOCKER}" ]]; then
+        echo -e "\n${COLORTITLE}• Docker${RESET}"
+        local runningnamesoutput totalnamesoutput
+        runningnamesoutput=$(safe_cmd "${DOCKER}" ps --format '{{.Names}}' 2>/dev/null)
+        totalnamesoutput=$(safe_cmd "${DOCKER}" ps -a --format '{{.Names}}' 2>/dev/null)
+        local runningcount=0 totalcount=0
+
+        if [[ "${runningnamesoutput}" != "N/A" ]] && [[ -n "${runningnamesoutput}" ]]; then
+            runningcount=$(echo "${runningnamesoutput}" | "${WC}" -l)
         fi
-        
-        if [[ "${total_names_output}" != "N/A" ]] && [[ -n "${total_names_output}" ]]; then
-            total_count=$(echo "${total_names_output}" | "${WC}" -l)
+        if [[ "${totalnamesoutput}" != "N/A" ]] && [[ -n "${totalnamesoutput}" ]]; then
+            totalcount=$(echo "${totalnamesoutput}" | "${WC}" -l)
         fi
-        
-        printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "Containers:" "${running_count} / ${total_count}"
-        
-        if [[ "${running_count}" -gt 0 ]] && [[ "${running_names_output}" != "N/A" ]]; then
-            echo -e "${COLOR_LABEL}Running Containers:${RESET}"
-            
+
+        # Вывод количества контейнеров
+        if [[ "${SHOW_DOCKER_STATUS}" == "true" ]]; then
+            printf "${COLORLABEL}%-22s${COLORVALUE}%s${RESET}\n" "Containers:" "${runningcount} / ${totalcount}"
+        fi
+
+        # Вывод списка имен контейнеров
+        if [[ "${SHOW_DOCKER_RUNNING_LIST}" == "true" ]] && [[ "${runningcount}" -gt 0 ]] && [[ "${runningnamesoutput}" != "N/A" ]]; then
+            echo -e "${COLORLABEL}Running Containers:${RESET}"
             local names_array=()
             while IFS= read -r line; do
                 [[ -n "$line" ]] && names_array+=("$line")
-            done <<< "${running_names_output}"
-            
+            done <<< "${runningnamesoutput}"
             for ((i = 0; i < ${#names_array[@]}; i+=2)); do
                 if [[ $((i + 1)) -lt ${#names_array[@]} ]]; then
-                    printf "  ${COLOR_VALUE}%-30s%-30s${RESET}\n" "${names_array[$i]}" "${names_array[$((i + 1))]}"
+                    printf " ${COLORVALUE}%-30s%-30s${RESET}\n" "${names_array[$i]}" "${names_array[$((i + 1))]}"
                 else
-                    printf "  ${COLOR_VALUE}%-30s${RESET}\n" "${names_array[$i]}"
+                    printf " ${COLORVALUE}%-30s${RESET}\n" "${names_array[$i]}"
                 fi
             done
         fi
-    elif [[ "${SHOW_DOCKER}" = "true" ]]; then
-        echo -e "\n${COLOR_TITLE}• Docker${RESET}"
-        printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "Docker:" "not installed"
+    elif [[ "${SHOWDOCKER}" == "true" ]]; then
+        echo -e "\n${COLORTITLE}• Docker${RESET}"
+        printf "${COLORLABEL}%-22s${COLORVALUE}%s${RESET}\n" "Docker:" "not installed"
     fi
 }
 
@@ -748,23 +753,19 @@ show_updates_info() {
 }
 
 show_services_info() {
-  # Загружаем настройки из конфига, если он есть
   source /etc/dist-motd.conf || true
 
-  # Проверяем, включено ли отображение статуса сервисов
   if [[ "${SERVICES_STATUS_ENABLED,,}" != "true" ]]; then
     return
   fi
 
   echo -e "\n${COLOR_TITLE}• Services Status${RESET}"
 
-  # Проверяем, есть ли список сервисов
   if [[ ${#SERVICES[@]} -eq 0 ]]; then
     printf "${COLOR_YELLOW}Настройте список сервисов через motd-set.${RESET}"
     return
   fi
 
-  # Основной цикл по сервисам
   for service in "${SERVICES[@]}"; do
     if command -v systemctl >/dev/null 2>&1; then
       if systemctl is-active --quiet "$service"; then
@@ -982,19 +983,26 @@ configure_motd_display() {
     fi
     
     CHOICES=$("${WHIPTAIL}" --title "MOTD Display Settings" --checklist \
-    "Выберите, что отображать в MOTD:" 20 70 10 \
+    "Выберите, что отображать в MOTD:" 20 80 12 \
     "SHOW_LOGO" "Логотип distillium" "$(check_setting 'SHOW_LOGO')" \
     "SHOW_CPU" "Загрузка процессора" "$(check_setting 'SHOW_CPU')" \
     "SHOW_MEM" "Память и диск" "$(check_setting 'SHOW_MEM')" \
     "SHOW_NET" "Сетевой трафик" "$(check_setting 'SHOW_NET')" \
     "SHOW_FIREWALL" "Статус UFW" "$(check_setting 'SHOW_FIREWALL')" \
-    "SHOW_FIREWALL_RULES" "Показать правила UFW" "$(check_setting 'SHOW_FIREWALL_RULES')" \
-    "SHOW_DOCKER" "Контейнеры Docker" "$(check_setting 'SHOW_DOCKER')" \
-    "SHOW_UPDATES" "Доступные обновления" "$(check_setting 'SHOW_UPDATES')" \
+    "SHOW_FIREWALL_RULES" "Правила UFW" "$(check_setting 'SHOW_FIREWALL_RULES')" \
+    "SHOW_DOCKER" "Контейнеры Docker (общий выключатель)" "$(check_setting 'SHOW_DOCKER')" \
+    "SHOW_DOCKER_STATUS" "Количество запущенных контейнеров" "$(check_setting 'SHOW_DOCKER_STATUS')" \
+    "SHOW_DOCKER_RUNNING_LIST" "Список запущенных контейнеров" "$(check_setting 'SHOW_DOCKER_RUNNING_LIST')" \
+    "SHOW_UPDATES" "Доступные обновления пакетов" "$(check_setting 'SHOW_UPDATES')" \
     3>&1 1>&2 2>&3)
     
     if [[ $? -eq 0 ]]; then
-        local VARIABLES=("SHOW_LOGO" "SHOW_CPU" "SHOW_MEM" "SHOW_NET" "SHOW_FIREWALL" "SHOW_FIREWALL_RULES" "SHOW_DOCKER" "SHOW_UPDATES")
+        local VARIABLES=(
+            "SHOW_LOGO" "SHOW_CPU" "SHOW_MEM" "SHOW_NET"
+            "SHOW_FIREWALL" "SHOW_FIREWALL_RULES"
+            "SHOW_DOCKER" "SHOW_DOCKER_STATUS" "SHOW_DOCKER_RUNNING_LIST"
+            "SHOW_UPDATES"
+        )
         
         for var in "${VARIABLES[@]}"; do
             if echo "${CHOICES}" | /bin/grep -q "${var}"; then
@@ -1098,7 +1106,7 @@ show_installation_status() {
     local status_info=""
     
     if check_backup_exists; then
-        status_info+="✓ Кастомный MOTD установлен\n"
+        status_info+="✓ Установлен кастомный MOTD v2.2.2\n"
         status_info+="✓ Полные бэкапы директорий: ${BACKUP_ROOT}\n"
         
         if [[ -f "${CONFIG}" ]]; then
@@ -1251,7 +1259,38 @@ main() {
     create_motd_script
     create_settings_command
     create_motd_command
-    configure_pam_ssh
+    configure_pam_configure_motd_display() {
+    if [[ ! -f "${CONFIG}" ]]; then
+        "${WHIPTAIL}" --title "Ошибка" --msgbox "Конфигурационный файл не найден: ${CONFIG}" 8 60
+        return
+    fi
+    
+    CHOICES=$("${WHIPTAIL}" --title "MOTD Display Settings" --checklist \
+    "Выберите, что отображать в MOTD:" 20 70 10 \
+    "SHOW_LOGO" "Логотип distillium" "$(check_setting 'SHOW_LOGO')" \
+    "SHOW_CPU" "Загрузка процессора" "$(check_setting 'SHOW_CPU')" \
+    "SHOW_MEM" "Память и диск" "$(check_setting 'SHOW_MEM')" \
+    "SHOW_NET" "Сетевой трафик" "$(check_setting 'SHOW_NET')" \
+    "SHOW_FIREWALL" "Статус UFW" "$(check_setting 'SHOW_FIREWALL')" \
+    "SHOW_FIREWALL_RULES" "Показать правила UFW" "$(check_setting 'SHOW_FIREWALL_RULES')" \
+    "SHOW_DOCKER" "Контейнеры Docker" "$(check_setting 'SHOW_DOCKER')" \
+    "SHOW_UPDATES" "Доступные обновления" "$(check_setting 'SHOW_UPDATES')" \
+    3>&1 1>&2 2>&3)
+    
+    if [[ $? -eq 0 ]]; then
+        local VARIABLES=("SHOW_LOGO" "SHOW_CPU" "SHOW_MEM" "SHOW_NET" "SHOW_FIREWALL" "SHOW_FIREWALL_RULES" "SHOW_DOCKER" "SHOW_UPDATES")
+        
+        for var in "${VARIABLES[@]}"; do
+            if echo "${CHOICES}" | /bin/grep -q "${var}"; then
+                /bin/sed -i "s/^${var}=.*/${var}=true/" "${CONFIG}"
+            else
+                /bin/sed -i "s/^${var}=.*/${var}=false/" "${CONFIG}"
+            fi
+        done
+        
+        "${WHIPTAIL}" --title "Успех" --msgbox "Настройки обновлены!\n\nПроверьте результат командой: motd" 10 50
+    fi
+}
     restart_ssh_service
     finalize_setup
     
