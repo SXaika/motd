@@ -682,6 +682,12 @@ show_firewall_info() {
 show_docker_info() {
     if [[ "${SHOW_DOCKER}" == "true" ]] && [[ -x "${DOCKER}" ]]; then
         echo -e "\n${COLOR_TITLE}• Docker${RESET}"
+
+        if [[ "${SHOW_DOCKER_STATUS}" != "true" ]] && [[ "${SHOW_DOCKER_RUNNING_LIST}" != "true" ]]; then
+            printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "Docker:" "info disabled by configuration"
+            return
+        fi
+
         local runningnamesoutput totalnamesoutput
         runningnamesoutput=$(safe_cmd "${DOCKER}" ps --format '{{.Names}}' 2>/dev/null)
         totalnamesoutput=$(safe_cmd "${DOCKER}" ps -a --format '{{.Names}}' 2>/dev/null)
@@ -712,6 +718,7 @@ show_docker_info() {
                 fi
             done
         fi
+
     elif [[ "${SHOW_DOCKER}" == "true" ]]; then
         echo -e "\n${COLOR_TITLE}• Docker${RESET}"
         printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "Docker:" "not installed"
