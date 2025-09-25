@@ -453,7 +453,7 @@ show_session_info() {
     printf "${COLOR_LABEL}%-22s${COLOR_YELLOW}%s${RESET}\n" "User:" "${real_user:-Unknown}"
 
     local last_login
-    last_login=$(journalctl -u ssh.service -u sshd.service -o short-iso \
+    last_login=$(journalctl -u ssh.service -u sshd.service -o short-iso -n 30 \
         | grep -E "Accepted (password|publickey|keyboard-interactive)" \
         | grep -w "${real_user}" \
         | tail -n 2 \
