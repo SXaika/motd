@@ -444,21 +444,23 @@ show_logo() {
 
 show_session_info() {
     echo -e "${COLOR_TITLE}• Session Info${RESET}"
-    
+
     local real_user
     real_user=$(safe_cmd /usr/bin/logname)
     if [[ "${real_user}" = "N/A" || -z "${real_user}" ]]; then
         real_user=$(safe_cmd "${WHO}" | "${AWK}" 'NR==1{print $1}')
     fi
     printf "${COLOR_LABEL}%-22s${COLOR_YELLOW}%s${RESET}\n" "User:" "${real_user:-Unknown}"
-    
+
     local last_login
-    last_login=$(journalctl -u ssh.service -u sshd.service -o short-iso -n 30 \
+    last_login=$(journalctl -u ssh.service -u sshd.service -o short-iso \
         | grep -E "Accepted (password|publickey|keyboard-interactive)" \
-        | tail -n 2 | head -n 1 \
+        | grep -w "${real_user}" \
+        | tail -n 2 \
+        | head -n 1 \
         | sed -n 's/^\([0-9TZ:+-]*\).* from \([0-9.]*\) port.*/\1 \2/p' \
         | while read dt ip; do
-            date_str=$(date -u -d "$dt" "+%d %b %H:%M")
+            date_str=$(date -d "$dt" "+%d %b %H:%M")
             echo "$date_str UTC from $ip"
           done)
 
@@ -467,7 +469,7 @@ show_session_info() {
     else
         echo -e "${COLOR_LABEL}Last login:${RESET} not available"
     fi
-    
+
     local uptime_fmt
     uptime_fmt=$(safe_cmd "${UPTIME}" -p | "${SED}" 's/up //')
     printf "${COLOR_LABEL}%-22s${COLOR_VALUE}%s${RESET}\n" "Uptime:" "${uptime_fmt:-Unknown}"
@@ -961,7 +963,7 @@ check_setting() {
 
 show_main_menu() {
     while true; do
-        CHOICE=$("${WHIPTAIL}" --title "MOTD Management" --menu \
+        CHOICE=$("${WHIPTAIL}" --title "MOTD v2.3.1" --menu \
         "Выберите действие:" 15 60 4 \
         "1" "Настроить отображение MOTD" \
         "2" "Настроить Services Status" \
@@ -1111,7 +1113,7 @@ show_installation_status() {
     local status_info=""
     
     if check_backup_exists; then
-        status_info+="✓ Установлен кастомный MOTD v2.2.2\n"
+        status_info+="✓ Установлен кастомный MOTD v2.3.1\n"
         status_info+="✓ Полные бэкапы директорий: ${BACKUP_ROOT}\n"
         
         if [[ -f "${CONFIG}" ]]; then
@@ -1312,6 +1314,10 @@ main() {
     echo ""
     echo "💾 Полные бэкапы директорий: ${BACKUP_ROOT}"
     echo "🔄 Для удаления: motd-set -> Удалить"
+    echo ""
+    echo "🕑 Для смены локального времени VPS и комфортного отображения в MOTD"
+    echo "  введите команду \e[1mtimedatectl set-timezone Europe/Moscow\e[0m"
+    echo "  Данный пример установит московский часовой пояс UTC+3"
     echo ""
 }
 
