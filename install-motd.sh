@@ -461,7 +461,7 @@ show_session_info() {
         | sed -n 's/^\([0-9TZ:+-]*\).* from \([0-9.]*\) port.*/\1 \2/p' \
         | while read dt ip; do
             date_str=$(date -d "$dt" "+%d %b %H:%M")
-            echo "$date_str UTC from $ip"
+            echo "$date_str from $ip"
           done)
 
     if [[ -n "$last_login" ]]; then
