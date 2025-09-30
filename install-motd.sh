@@ -301,7 +301,7 @@ install_dependencies() {
         log_warn "Не удалось обновить список пакетов, продолжаем установку"
     fi
     
-    local packages=("toilet" "figlet" "procps" "lsb-release" "whiptail" "rsync")
+    local packages=("procps" "lsb-release" "whiptail" "rsync")
     if ! "${APT_GET}" install -y "${packages[@]}" > /dev/null; then
         log_error "Не удалось установить необходимые пакеты"
         exit 1
@@ -435,10 +435,9 @@ safe_cmd() {
 }
 
 show_logo() {
-    if [[ "${SHOW_LOGO}" = "true" ]] && [[ -x "${TOILET}" ]]; then
-        echo -e "${COLOR_TITLE}"
-        "${TOILET}" -f standard "distillium" 2>/dev/null || echo "distillium"
-        echo -e "${RESET}"
+    if [[ "${SHOW_LOGO}" = "true" ]]; then
+        echo -e "${COLOR_TITLE}Message Of The Day by distillium (v2.3.2)${RESET}"
+        echo -e "${COLOR_TITLE}-----------------------------------------${RESET}"
     fi
 }
 
@@ -963,7 +962,7 @@ check_setting() {
 
 show_main_menu() {
     while true; do
-        CHOICE=$("${WHIPTAIL}" --title "MOTD v2.3.1" --menu \
+        CHOICE=$("${WHIPTAIL}" --title "MOTD v2.3.2" --menu \
         "Выберите действие:" 15 60 4 \
         "1" "Настроить отображение MOTD" \
         "2" "Настроить Services Status" \
@@ -991,7 +990,7 @@ configure_motd_display() {
     
     CHOICES=$("${WHIPTAIL}" --title "MOTD Display Settings" --checklist \
     "Выберите, что отображать в MOTD:" 20 80 12 \
-    "SHOW_LOGO" "Логотип distillium" "$(check_setting 'SHOW_LOGO')" \
+    "SHOW_LOGO" "Заголовок MOTD" "$(check_setting 'SHOW_LOGO')" \
     "SHOW_CPU" "Загрузка процессора" "$(check_setting 'SHOW_CPU')" \
     "SHOW_MEM" "Память и диск" "$(check_setting 'SHOW_MEM')" \
     "SHOW_NET" "Сетевой трафик" "$(check_setting 'SHOW_NET')" \
@@ -1113,7 +1112,7 @@ show_installation_status() {
     local status_info=""
     
     if check_backup_exists; then
-        status_info+="✓ Установлен кастомный MOTD v2.3.1\n"
+        status_info+="✓ Установлен кастомный MOTD\n"
         status_info+="✓ Полные бэкапы директорий: ${BACKUP_ROOT}\n"
         
         if [[ -f "${CONFIG}" ]]; then
